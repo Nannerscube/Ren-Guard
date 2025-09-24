@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ren-Guard Recycling Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 90%;
+            margin: auto;
+            padding: 2rem;
+        }
+        .card {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        .icon {
+            color: #4CAF50;
+        }
+        .refresh-btn {
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .refresh-btn:hover {
+            background-color: #45a049;
+        }
+        .refresh-btn:disabled {
+            background-color: #6b6b6b;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center">
+
+    <div class="container rounded-2xl shadow-2xl p-8 md:p-12 bg-gray-800">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-center mb-4 text-green-400 drop-shadow-md">Ren-Guard Dashboard</h1>
+        <p class="text-center text-lg md:text-xl text-gray-400 mb-8">
+            Real-time update on recycled materials.
+        </p>
+
+        <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Dynamic cards will be injected here by JavaScript -->
+        </div>
+
+        <div class="flex justify-center mt-10">
+            <button id="refreshButton" class="refresh-btn py-3 px-8 rounded-full font-bold text-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800">
+                Refresh Data
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Use a simple array of objects for the mock data.
+        let recyclingData = [
+            { id: 'Plastic', name: 'Plastic', amount: 0, unit: 'Items' },
+            { id: 'Cardboard', name: 'Cardboard', amount: 0, unit: 'Items' },
+            { id: 'Glass', name: 'Glass', amount: 0, unit: 'Items' },
+            { id: 'Tin', name: 'Tin', amount: 0, unit: 'Items' }
+        ];
+
+        // Function to render the dashboard based on data
+        function renderDashboard() {
+            const dashboardGrid = document.getElementById('dashboard-grid');
+            dashboardGrid.innerHTML = ''; // Clear previous content
+
+            recyclingData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card rounded-xl p-6 flex flex-col items-center text-center shadow-lg';
+                card.innerHTML = `
+                    <h2 class="text-2xl font-semibold mb-2">${item.name}</h2>
+                    <p id="${item.id}Amount" class="text-4xl font-extrabold text-green-400">${item.amount}</p>
+                    <p class="text-gray-400 mt-2">${item.unit}</p>
+                `;
+                dashboardGrid.appendChild(card);
+            });
+        }
+      
+        // Fetching data from the Raspberry Pi's Flask server
+        async function fetchRecyclingData() {
+            try {
+                // Adjust the IP address and port as needed for your specific setup
+                const response = await fetch('http://localhost:5000/data');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Failed to fetch data:", error);
+                // Optionally, show a user-facing error message
+                return null;
+            }
+        }
+
+        // Function to fetch and update data
+        async function updateData() {
+            const refreshButton = document.getElementById('refreshButton');
+            refreshButton.innerText = 'Refreshing...';
+            refreshButton.disabled = true;
+
+            const fetchedData = await fetchRecyclingData();
+            if (fetchedData) {
+                recyclingData.forEach(item => {
+                    const currentAmount = item.amount;
+                    const newAmount = fetchedData[item.id];
+                    item.amount = newAmount;
+
+                    const amountElement = document.getElementById(`${item.id}Amount`);
+                    if (amountElement) {
+                        // Simple animation for the number update
+                        let start = currentAmount;
+                        const duration = 1000;
+                        const step = (newAmount - start) / (duration / 16); // ~60 FPS
+                        
+                        const animateUpdate = () => {
+                            if (start < newAmount) {
+                                start += step;
+                                amountElement.innerText = Math.round(start);
+                                requestAnimationFrame(animateUpdate);
+                            } else {
+                                amountElement.innerText = newAmount;
+                            }
+                        };
+                        animateUpdate();
+                    }
+                });
+            } else {
+                // Handle the case where the data fetch failed
+                console.error("Data update failed.");
+            }
+            
+            refreshButton.innerText = 'Refresh Data';
+            refreshButton.disabled = false;
+        }
+
+
+        // Initial render and event listener for the refresh button
+        window.onload = function() {
+            renderDashboard();
+            updateData(); // Call once on page load to populate initial data
+
+            const refreshButton = document.getElementById('refreshButton');
+            refreshButton.addEventListener('click', updateData);
+        };
+    </script>
+</body>
+</html>
