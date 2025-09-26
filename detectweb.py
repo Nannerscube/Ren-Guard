@@ -5,10 +5,9 @@ from collections import Counter
 from gpiozero import Servo
 from gpiozero.pins.pigpio import PiGPIOFactory
 from time import sleep
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from flask_cors import CORS
 from threading import Thread
-import json
 
 # Servo setup
 factory = PiGPIOFactory()
@@ -17,6 +16,7 @@ servo2 = Servo(18, pin_factory=factory)  # Drop actuator
 
 # Helper to convert degrees to gpiozero value (-1 to 1)
 def angle_to_value(degrees):
+    """Converts a degree value to the -1 to 1 range for the servo."""
     return (degrees / 90.0) - 1
 
 # Servo action map based on material
@@ -29,6 +29,7 @@ material_actions = {
 
 # Simplify YOLO label to material
 def simplify_label(label):
+    """Simplifies the raw YOLO label to a known material category."""
     if label.startswith("Tin_Can"):
         return "Tin"
     elif label.startswith("Cardboard"):
@@ -44,6 +45,7 @@ def simplify_label(label):
 model = YOLO('my_model.pt')
 
 # Global variable to store detected materials and their counts
+# This is accessed by both the Flask app and the detection thread.
 material_counts = {
     "Plastic": 0,
     "Cardboard": 0,
@@ -58,40 +60,50 @@ CORS(app)  # Enable CORS for the web page
 # API endpoint to get the current recycling data
 @app.route('/data')
 def get_data():
+    """Returns the current material counts as a JSON response."""
     return jsonify(material_counts)
 
-# A thread to run the YOLO detection continuously
+# A thread to run the YOLO detection continuously in the background
 def run_detection():
+    """
+    Main function for the detection thread.
+    It continuously processes frames, updates material counts, and controls servos.
+    """
     print("Starting detection... Press Ctrl+C to stop.")
     try:
         # source=0 means a webcam
         for result in model(source=0, stream=True, imgsz=(1280, 720)):
-            frame_labels = []
+            # Loop through each detected object in the frame
             for box in result.boxes:
                 cls_id = int(box.cls[0])
                 raw_label = result.names[cls_id]
                 material = simplify_label(raw_label)
                 
-                # Update the global counts
+                # Update the global counts for the web dashboard
                 if material in material_counts:
                     material_counts[material] += 1
                 
                 print(f"Detected: {material}")
 
+                # Control servos for sorting
                 if material in material_actions:
                     base_angle, drop_angle = material_actions[material]
-                    print(f"\nSorting: {material} → Base {base_angle}°, Drop {drop_angle}°")
+                    print(f"\nSorting: {material} -> Base {base_angle}°, Drop {drop_angle}°")
+                    
                     # Move base
                     servo1.value = angle_to_value(base_angle)
                     sleep(1)
+                    
                     # Drop
                     servo2.value = angle_to_value(drop_angle)
                     sleep(1)
+                    
                     # Return drop to neutral (90° value=0)
                     servo2.value = 0
                     sleep(0.5)
 
-            sleep(0.5) # small delay
+            # Wait a moment before processing the next frame
+            sleep(0.5)
             
     except KeyboardInterrupt:
         print("\nDetection stopped by user.")

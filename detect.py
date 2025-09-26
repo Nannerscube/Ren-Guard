@@ -1,17 +1,31 @@
+import RPi.GPIO as GPIO
+from time import sleep
 from ultralytics import YOLO
 from collections import Counter
-from gpiozero import Servo
-from gpiozero.pins.pigpio import PiGPIOFactory
-from time import sleep
 
-# Servo setup
-factory = PiGPIOFactory()
-servo1 = Servo(17, pin_factory=factory)  # Base rotation
-servo2 = Servo(18, pin_factory=factory)  # Drop actuator
+# GPIO setup
+GPIO.setmode(GPIO.BCM)
 
-# Helper to convert degrees to gpiozero value (-1 to 1)
-def angle_to_value(degrees):
-    return (degrees / 90.0) - 1
+# Define pins
+servo1_pin = 17  # Base rotation
+servo2_pin = 18  # Drop actuator
+
+GPIO.setup(servo1_pin, GPIO.OUT)
+GPIO.setup(servo2_pin, GPIO.OUT)
+
+# Set PWM at 50 Hz (standard for servos)
+servo1 = GPIO.PWM(servo1_pin, 50)
+servo2 = GPIO.PWM(servo2_pin, 50)
+
+servo1.start(0)  # initial duty cycle
+servo2.start(0)
+
+# --- Helper: map angle (0–180°) to duty cycle ---
+def set_angle(servo, angle):
+    duty = 2 + (angle / 18)   # maps 0–180° -> ~2–12% duty cycle
+    servo.ChangeDutyCycle(duty)
+    sleep(0.5)
+    servo.ChangeDutyCycle(0)  # stop sending continuous pulses
 
 # Servo action map based on material
 material_actions = {
@@ -54,15 +68,15 @@ try:
                 print(f"\nSorting: {material} → Base {base_angle}°, Drop {drop_angle}°")
 
                 # Move base
-                servo1.value = angle_to_value(base_angle)
+                set_angle(servo1, base_angle)
                 sleep(1)
 
-                # Drop
-                servo2.value = angle_to_value(drop_angle)
+                # Drop actuator
+                set_angle(servo2, drop_angle)
                 sleep(1)
 
-                # Return drop to neutral (90° value=0)
-                servo2.value = 0
+                # Return drop actuator to neutral (90°)
+                set_angle(servo2, 90)
                 sleep(0.5)
 
         labels_per_frame.append(frame_labels)
@@ -70,6 +84,10 @@ try:
 
 except KeyboardInterrupt:
     print("\nDetection stopped by user.")
+finally:
+    servo1.stop()
+    servo2.stop()
+    GPIO.cleanup()
 
 # Save detected materials
 with open('detected.txt', 'w') as f:
