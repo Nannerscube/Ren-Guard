@@ -22,11 +22,11 @@ Outputs:
 - OpenCV
 - Numpy
 - PiCamera2
-- 
+- Flask
 
 ### Optional
 - Visual Studio Code
-- 
+- 3d Model
 
 ## Installation
 - Install the Raspberry Pi imager from the website
