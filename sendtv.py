@@ -40,9 +40,8 @@ def parse_and_deduplicate_data(file_path='detected.txt'):
             # This logic assumes the first detected item is the one we care about for counting
             current_frame_material = next((m for m in materials_list if m in valid_materials), None)
         
-        # --- De-duplication Logic ---
-        
-        # Case 1: A valid material is detected in the current frame
+        #  De-duplication Logic
+        # if A valid material is detected in the current frame
         if current_frame_material and current_frame_material in valid_materials:
             
             # If the detected material is DIFFERENT from the one in the previous frame (or if the previous was 'None'),
@@ -53,7 +52,7 @@ def parse_and_deduplicate_data(file_path='detected.txt'):
             # Update the state to the currently detected material
             last_detected_material = current_frame_material
             
-        # Case 2: No valid material is detected (e.g., empty frame, or 'Unknown')
+        # if No valid material is detected (e.g., empty frame, or 'Unknown')
         else:
             # This creates the "space" or pause, allowing the next item, even if it's the same type, to be counted.
             last_detected_material = None
@@ -65,7 +64,7 @@ def send_data():
     Calls the parsing function and sends the de-duplicated counts to the web server.
     """
     # Wait a moment to ensure the file has been written by detect.py
-    # NOTE: This wait time may need adjustment depending on how long detect.py runs
+    # This wait time may need adjustment depending on how long detect.py runs
     print("Waiting 2 seconds to ensure detect.py has finished writing the file...")
     time.sleep(2)
     
